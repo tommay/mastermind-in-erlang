@@ -18,12 +18,7 @@ new() ->
 %%
 new(UseAllCodes) ->
     AllCodes = codes(),
-    %% Create all valid scores, i.e., different numbers of red/white.
-    %% Scores are represented as a tuple of numbers {R, W} where R and
-    %% W are between 0 and 4.
-    %% The score {3, 1} is not possible.
-    AllScores = [{R, W} || R <- lists:seq(0, 4), W <- lists:seq(0, 4-R),
-			   not ((R == 3) and (W == 1))],
+    AllScores = scores(),
     #mastermind{use_all_codes = UseAllCodes, codes = AllCodes,
 		all_codes = AllCodes, all_scores = AllScores}.
 
@@ -35,6 +30,14 @@ colors() ->
 
 codes() ->
     spud:combinations(4, colors()).
+
+%% Create all possible scores, i.e., different numbers of red/white.
+%% Scores are represented as a tuple of numbers {R, W} where R and W
+%% are between 0 and 4.  The score {3, 1} is not possible.
+%%
+scores() ->
+    [{R, W} || R <- lists:seq(0, 4), W <- lists:seq(0, 4-R),
+	       not ((R == 3) and (W == 1))].
 
 random_code() ->
     random_code(codes()).
