@@ -21,7 +21,9 @@ new(UseAllCodes) ->
     %% Create all valid scores, i.e., different numbers of red/white.
     %% Scores are represented as a tuple of numbers {R, W} where R and
     %% W are between 0 and 4.
-    AllScores = [{R, W} || R <- lists:seq(0, 4), W <- lists:seq(0, 4-R)],
+    %% The score {3, 1} is not possible.
+    AllScores = [{R, W} || R <- lists:seq(0, 4), W <- lists:seq(0, 4-R),
+			   not ((R == 3) and (W == 1))],
     #mastermind{use_all_codes = UseAllCodes, codes = AllCodes,
 		all_codes = AllCodes, all_scores = AllScores}.
 
