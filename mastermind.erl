@@ -119,32 +119,20 @@ filter_codes(Codes, Guess, Score) ->
     [Code || Code <- Codes, compute_score(Code, Guess) == Score].
 
 parallel_min_by(List, Func) ->
-    Self = self(),
-    Ref = make_ref(),
-    lists:foreach(
-      fun (Element) ->
-	      spawn(fun () -> Self ! {Ref, Func(Element), Element} end)
-      end,
-      List),
-    collect_min_by(Ref, length(List)).
+    {_, Result} = parallel_min(
+		    List,
+		    fun (Element) ->
+			    {Func(Element), Element}
+		    end),
+    Result.
 
-collect_min_by(Ref, N) ->
-    collect_min_by(Ref, N, undefined, undefined).
-
-collect_min_by(_Ref, 0, _Min, Element) ->
-    Element;
-collect_min_by(Ref, N, Min, Element) ->
-    receive
-	{Ref, Value, NewElement} ->
-	    case (Min == undefined) orelse (Value < Min) of
-		true ->
-		    collect_min_by(Ref, N - 1, Value, NewElement);
-		false ->
-		    collect_min_by(Ref, N - 1, Min, Element)
-	    end
-    end.
-
+parallel_min(List, Func) ->
+    parallel_minmax(List, Func, fun (Value, Result) -> Value < Result end).
+					
 parallel_max(List, Func) ->
+    parallel_minmax(List, Func, fun (Value, Result) -> Value > Result end).
+					
+parallel_minmax(List, Func, Pred) ->
     Self = self(),
     Ref = make_ref(),
     lists:foreach(
@@ -152,21 +140,20 @@ parallel_max(List, Func) ->
 	      spawn(fun () -> Self ! {Ref, Func(Element)} end)
       end,
       List),
-    collect_max(Ref, length(List)).
+    collect_minmax(Ref, Pred, length(List)).
 
-collect_max(Ref, N) ->
-    collect_max(Ref, N, undefined).
+collect_minmax(Ref, Pred, N) ->
+    collect_minmax(Ref, Pred, N, undefined).
 
-collect_max(_Ref, 0, Max) ->
-    Max;
-collect_max(Ref, N, Max) ->
+collect_minmax(_Ref, _Pred, 0, Result) ->
+    Result;
+collect_minmax(Ref, Pred, N, Result) ->
     receive
 	{Ref, Value} ->
-	    case (Max == undefined) orelse (Value > Max) of
+	    case (Result == undefined) orelse Pred(Value, Result) of
 		true ->
-		    collect_max(Ref, N - 1, Value);
+		    collect_minmax(Ref, Pred, N - 1, Value);
 		false ->
-		    collect_max(Ref, N - 1, Max)
+		    collect_minmax(Ref, Pred, N - 1, Result)
 	    end
     end.
-
