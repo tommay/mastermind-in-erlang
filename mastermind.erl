@@ -77,7 +77,7 @@ best_guess(This) ->
 		    This#mastermind.codes
 	    end,
 
-    spud:min_by(
+    parallel_min_by(
       Codes,
       fun (Guess) ->
 	      lists:max(
@@ -102,3 +102,29 @@ compute_score(Code, Guess) ->
 %%
 filter_codes(Codes, Guess, Score) ->
     [Code || Code <- Codes, compute_score(Code, Guess) == Score].
+
+parallel_min_by(List, Func) ->
+    Self = self(),
+    Ref = make_ref(),
+    lists:foreach(
+      fun (Element) ->
+	  spawn(fun () -> Self ! {Ref, Func(Element), Element} end)
+      end,
+      List),
+    collect_min(Ref, length(List)).
+
+collect_min(Ref, N) ->
+    collect_min(Ref, N, undefined, undefined).
+
+collect_min(_Ref, 0, _Min, Element) ->
+    Element;
+collect_min(Ref, N, Min, Element) ->
+    receive
+	{Ref, Value, NewElement} ->
+	    case (Min == undefined) orelse (Value < Min) of
+		true ->
+		    collect_min(Ref, N - 1, Value, NewElement);
+		false ->
+		    collect_min(Ref, N - 1, Min, Element)
+	    end
+    end.
