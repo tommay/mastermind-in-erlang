@@ -80,11 +80,15 @@ best_guess(#mastermind{codes = [H]}) ->
 best_guess(This) ->
     %% Find the longest path to finish for each code.  Return the code
     %% with the shortest worst-case path.
+    {Guess, {PathLength, _}} =
     min_by(
       codes_to_try(This),
       fun (Guess) ->
-	      worst_case_path_length(This, Guess)
-      end).
+	      %% Include a random number to mix things up when there's a tie.
+	      {worst_case_path_length(This, Guess), random:uniform()}
+      end),
+    io:format("~p (~p)~n", [Guess, PathLength]),
+    Guess.
 
 worst_case_path_length(This, Guess) ->
     max(This#mastermind.all_scores,
@@ -180,8 +184,8 @@ collect_minmax(Ref, Pred, N, Result) ->
     end.
 
 min_by(List, Func) ->
-    {_Min, Result} = min(List, fun (E) -> {Func(E), E} end),
-    Result.
+    {Min, Result} = min(List, fun (E) -> {Func(E), E} end),
+    {Result, Min}.
 
 min(List, Func) ->
     min(List, Func, undefined).
