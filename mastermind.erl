@@ -2,14 +2,16 @@
 -export([new/0, new/1, new/3, random_code/0, size/1, make_guess/1,
 	 compute_score/2]).
 -compile({no_auto_import, [size/1]}).
+-compile({no_auto_import, [min/2]}).
+-compile({no_auto_import, [max/2]}).
 -compile(export_all).
 
--record(mastermind, {use_all_codes = false, codes, all_codes, all_scores}).
+-record(mastermind, {try_all_codes = false, codes, all_codes, all_scores}).
 
 new() ->
     new(false).
 
-%% use_all_codes: true means make guesses from CODES which contains
+%% try_all_codes: true means make guesses from CODES which contains
 %% all possible codes.  It remains to be seen whether having a larger
 %% set of guesses makes solving faster, i.e., fewer guesses.  False
 %% means make guesses only from codes.  codes: an Array of all codes
@@ -17,17 +19,17 @@ new() ->
 %% one-ply searches show using all codes on average takes more
 %% guesses.
 %%
-new(UseAllCodes) ->
+new(TryAllCodes) ->
     AllCodes = codes(),
     AllScores = scores(),
-    #mastermind{use_all_codes = UseAllCodes, codes = AllCodes,
+    #mastermind{try_all_codes = TryAllCodes, codes = AllCodes,
 		all_codes = AllCodes, all_scores = AllScores}.
 
 new(This, Guess, Score) ->
     This#mastermind{codes = filter_codes(This#mastermind.codes, Guess, Score)}.
 
 colors() ->
-    [white, yellow, pink, purple, orange, turquoise].
+    [white, yellow, pink, purple]. %% , orange, turquoise].
 
 codes() ->
     spud:combinations(4, colors()).
@@ -50,13 +52,23 @@ random_code(Codes) ->
 size(This) ->
     length(This#mastermind.codes).
 
+codes_to_try(This) ->
+    case This#mastermind.try_all_codes of
+	true ->
+	    This#mastermind.all_codes;
+	false ->
+	    This#mastermind.codes
+    end.
+
 make_guess(This) ->
     case size(This) == length(This#mastermind.all_codes) of
 	true ->
 	    %% This saves time on the first guess.  It's unknown
 	    %% whether some guesses might be better, e.g., guesses
 	    %% with more or less duplicate colors.
-	    random_code(This#mastermind.codes);
+	    best_guess(This);
+	    %%random_code(This#mastermind.codes);
+	    %%[white,yellow,white,yellow];
 	false ->
 	    best_guess(This)
     end.
@@ -66,27 +78,36 @@ best_guess(#mastermind{codes = [H]}) ->
     %% all_codes instead of codes.
     H;
 best_guess(This) ->
-    %% This chooses the guess that gives us (for the worst case score)
-    %% the fewest possibile codes for the next round.  Choosing a
-    %% guess from all possible codes may narrow down the possibilities
-    %% later.  This is a one-ply search.
-
-    Codes = case This#mastermind.use_all_codes of
-		true ->
-		    This#mastermind.all_codes;
-		false ->
-		    This#mastermind.codes
-	    end,
-
-    parallel_min_by(
-      Codes,
+    %% Find the longest path to finish for each code.  Return the code
+    %% with the shortest worst-case path.
+    min_by(
+      codes_to_try(This),
       fun (Guess) ->
-	      worst_case(This, Guess)
+	      worst_case_path_length(This, Guess)
       end).
 
-worst_case(This, Guess) ->
-    lists:max(
-      [size(new(This, Guess, Score)) || Score <- This#mastermind.all_scores]).
+worst_case_path_length(This, Guess) ->
+    max(This#mastermind.all_scores,
+	fun (Score) ->
+		New = new(This, Guess, Score),
+		case size(New) of
+		    0 ->
+			%% This Score is not possible for this Guess,
+			%% so don't include it in the max.
+			-1;
+		    1 ->
+			1;
+		    _ ->
+			1 + path_length(New)
+		end
+	end).
+
+path_length(This) ->
+    min(
+      codes_to_try(This),
+      fun (Guess) ->
+	      worst_case_path_length(This, Guess)
+      end).
 
 %% The parallel_max version works fine, but erl seems to choke when
 %% the number of processes gets too high.  1296 codes times 14 scores
@@ -157,3 +178,37 @@ collect_minmax(Ref, Pred, N, Result) ->
 		    collect_minmax(Ref, Pred, N - 1, Result)
 	    end
     end.
+
+min_by(List, Func) ->
+    {_Min, Result} = min(List, fun (E) -> {Func(E), E} end),
+    Result.
+
+min(List, Func) ->
+    min(List, Func, undefined).
+
+min([], _Func, Result) ->
+    Result;
+min([H|T], Func, Result) ->
+    Value = Func(H),
+    case (Result == undefined) orelse (Value < Result) of
+	true->
+	    min(T, Func, Value);
+	false ->
+	    min(T, Func, Result)
+    end.
+
+
+max(List, Func) ->
+    max(List, Func, undefined).
+
+max([], _Func, Result) ->
+    Result;
+max([H|T], Func, Result) ->
+    Value = Func(H),
+    case (Result == undefined) orelse (Value > Result) of
+	true ->
+	    max(T, Func, Value);
+	false ->
+	    max(T, Func, Result)
+    end.
+
