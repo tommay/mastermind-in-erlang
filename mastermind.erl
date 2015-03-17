@@ -81,10 +81,11 @@ best_guess(This) ->
     %% Find the longest path to finish for each code.  Return the code
     %% with the shortest worst-case path.
     {Guess, {PathLength, _}} =
-    min_by(
+    parallel_min_by(
       codes_to_try(This),
       fun (Guess) ->
 	      %% Include a random number to mix things up when there's a tie.
+	      random:seed(now()),
 	      {worst_case_path_length(This, Guess), random:uniform()}
       end),
     io:format("~p (~p)~n", [Guess, PathLength]),
@@ -144,12 +145,12 @@ filter_codes(Codes, Guess, Score) ->
     [Code || Code <- Codes, compute_score(Code, Guess) == Score].
 
 parallel_min_by(List, Func) ->
-    {_, Result} = parallel_min(
+    {Min, Result} = parallel_min(
 		    List,
 		    fun (Element) ->
 			    {Func(Element), Element}
 		    end),
-    Result.
+    {Result, Min}.
 
 parallel_min(List, Func) ->
     parallel_minmax(List, Func, fun (Value, Result) -> Value < Result end).
