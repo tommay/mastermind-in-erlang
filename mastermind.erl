@@ -29,7 +29,7 @@ new(This, Guess, Score) ->
     This#mastermind{codes = filter_codes(This#mastermind.codes, Guess, Score)}.
 
 colors() ->
-    [white, yellow, pink, purple]. %% , orange, turquoise].
+    [white, yellow, pink, purple, orange, turquoise].
 
 codes() ->
     spud:combinations(4, colors()).
@@ -47,7 +47,10 @@ random_code() ->
 
 random_code(Codes) ->
     random:seed(now()),
-    lists:nth(random:uniform(length(Codes)), Codes).
+    sample(Codes).
+
+sample(List) ->
+    lists:nth(random:uniform(length(List)), List).
 
 size(This) ->
     length(This#mastermind.codes).
@@ -63,15 +66,30 @@ codes_to_try(This) ->
 make_guess(This) ->
     case size(This) == length(This#mastermind.all_codes) of
 	true ->
-	    %% This saves time on the first guess.  It's unknown
-	    %% whether some guesses might be better, e.g., guesses
-	    %% with more or less duplicate colors.
-	    best_guess(This);
-	    %%random_code(This#mastermind.codes);
-	    %%[white,yellow,white,yellow];
+	    %% This saves time on the first guess.
+	    first_guess(This);
 	false ->
 	    best_guess(This)
     end.
+
+first_guess(This) ->
+    %% For the first guess we only need to determine what category
+    %% of guess is best: all the same color, 3 of one color and 1 of
+    %% another, etc.  The actual colors and positions don't matter.
+    %% So we caategorize all the codes, use the first one as a representative
+    %% to get the worst case path length, then pick a random guess
+    %% from the best category.
+    Codes = This#mastermind.codes,
+    Categorized = group_by(Codes, fun (Code) -> get_category(Code) end),
+    {{_Category, List}, _Min} =
+	parallel_min_by(
+	  Categorized,
+	  fun (E) ->
+		  {_Category, List} = E,
+		  Guess = hd(List),
+		  {worst_case_path_length(This, Guess), random:uniform()}
+	  end),
+    sample(List).
 
 best_guess(#mastermind{codes = [H]}) ->
     %% This case is only necessary if we're making guesses from
@@ -217,3 +235,18 @@ max([H|T], Func, Result) ->
 	    max(T, Func, Result)
     end.
 
+get_category(Code) ->
+    Uniq = spud:uniq(Code),
+    Counts = [length([C || C <- Code, C == U]) || U <- Uniq],
+    lists:sort(Counts).
+
+%% -> [{key1,[val, val, ...]}, {key1,[val, val, ...]}, ...]
+%%
+group_by(List, Func) ->
+    group_by(List, Func, dict:new()).
+
+group_by([], _Func, Dict) ->
+    dict:to_list(Dict);
+group_by([H|T], Func, Dict) ->
+    Group = Func(H),
+    group_by(T, Func, dict:append(Group, H, Dict)).
