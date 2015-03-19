@@ -77,6 +77,7 @@ first_guess(This) ->
     Categorized = group_by(Codes, fun (Code) -> get_category(Code) end),
     {{_Category, List}, _Min} =
 	spud:parallel_min_by(
+	  limiter,
 	  Categorized,
 	  fun (E) ->
 		  {_Category, List} = E,
@@ -96,6 +97,7 @@ best_guess(This) ->
     %% with the shortest worst-case path.
     {Guess, {_PathLength, _}} =
     spud:parallel_min_by(
+      limiter,
       codes_to_try(This),
       fun (Guess) ->
 	      %% Include a random number to mix things up when there's a tie.
@@ -127,8 +129,10 @@ path_length(This) ->
     %% it down is a win.
     Codes = codes_to_try(This),
     case length(Codes) < 15 of
-	true -> F = fun spud:min/2;
-	false -> F = fun spud:parallel_min/2
+	true ->
+	    F = fun spud:min/2;
+	false ->
+	    F = fun (List, Func) -> spud:parallel_min(limiter, List, Func) end
     end,
     F(codes_to_try(This),
       fun (Guess) ->
