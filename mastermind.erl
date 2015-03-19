@@ -2,9 +2,6 @@
 -export([new/0, new/1, new/3, random_code/0, size/1, make_guess/1,
 	 compute_score/2]).
 -compile({no_auto_import, [size/1]}).
--compile({no_auto_import, [min/2]}).
--compile({no_auto_import, [max/2]}).
--compile(export_all).
 
 -record(mastermind, {try_all_codes = false, codes, all_codes, all_scores}).
 
@@ -47,10 +44,7 @@ random_code() ->
 
 random_code(Codes) ->
     random:seed(now()),
-    sample(Codes).
-
-sample(List) ->
-    lists:nth(random:uniform(length(List)), List).
+    spud:sample(Codes).
 
 size(This) ->
     length(This#mastermind.codes).
@@ -82,7 +76,7 @@ first_guess(This) ->
     Codes = This#mastermind.codes,
     Categorized = group_by(Codes, fun (Code) -> get_category(Code) end),
     {{_Category, List}, _Min} =
-	parallel_min_by(
+	spud:parallel_min_by(
 	  Categorized,
 	  fun (E) ->
 		  {_Category, List} = E,
@@ -91,7 +85,7 @@ first_guess(This) ->
 		  io:format("~p: ~p~n", [_Category, WorstCase]),
 		  {WorstCase, random:uniform()}
 	  end),
-    sample(List).
+    spud:sample(List).
 
 best_guess(#mastermind{codes = [H]}) ->
     %% This case is only necessary if we're making guesses from
@@ -101,7 +95,7 @@ best_guess(This) ->
     %% Find the longest path to finish for each code.  Return the code
     %% with the shortest worst-case path.
     {Guess, {_PathLength, _}} =
-    parallel_min_by(
+    spud:parallel_min_by(
       codes_to_try(This),
       fun (Guess) ->
 	      %% Include a random number to mix things up when there's a tie.
@@ -113,7 +107,7 @@ best_guess(This) ->
 
 worst_case_path_length(This, Guess) ->
     %% parallel_max makes for less parallelism here.
-    max(This#mastermind.all_scores,
+    spud:max(This#mastermind.all_scores,
 	fun (Score) ->
 		New = new(This, Guess, Score),
 		case size(New) of
@@ -133,8 +127,8 @@ path_length(This) ->
     %% it down is a win.
     Codes = codes_to_try(This),
     case length(Codes) < 15 of
-	true -> F = fun min/2;
-	false -> F = fun parallel_min/2
+	true -> F = fun spud:min/2;
+	false -> F = fun spud:parallel_min/2
     end,
     F(codes_to_try(This),
       fun (Guess) ->
@@ -158,85 +152,6 @@ compute_score(Code, Guess) ->
 %%
 filter_codes(Codes, Guess, Score) ->
     [Code || Code <- Codes, compute_score(Code, Guess) == Score].
-
-parallel_min_by(List, Func) ->
-    {Min, Result} = parallel_min(
-		      List,
-		      fun (Element) ->
-			      {Func(Element), Element}
-		      end),
-    {Result, Min}.
-
-parallel_min(List, Func) ->
-    parallel_minmax(List, Func, fun (Value, Result) -> Value < Result end).
-					
-parallel_max(List, Func) ->
-    parallel_minmax(List, Func, fun (Value, Result) -> Value > Result end).
-					
-parallel_minmax(List, Func, Pred) ->
-    Self = self(),
-    Ref = make_ref(),
-    lists:foreach(
-      fun (Element) ->
-	      F = fun () -> Self ! {Ref, Func(Element)} end,
-	      case limiter:try_spawn(limiter, F) of
-		  true ->
-		      ok;
-		  false ->
-		      F()
-	      end
-      end,
-      List),
-    collect_minmax(Ref, Pred, length(List)).
-
-collect_minmax(Ref, Pred, N) ->
-    collect_minmax(Ref, Pred, N, undefined).
-
-collect_minmax(_Ref, _Pred, 0, Result) ->
-    Result;
-collect_minmax(Ref, Pred, N, Result) ->
-    receive
-	{Ref, Value} ->
-	    case (Result == undefined) orelse Pred(Value, Result) of
-		true ->
-		    collect_minmax(Ref, Pred, N - 1, Value);
-		false ->
-		    collect_minmax(Ref, Pred, N - 1, Result)
-	    end
-    end.
-
-min_by(List, Func) ->
-    {Min, Result} = min(List, fun (E) -> {Func(E), E} end),
-    {Result, Min}.
-
-min(List, Func) ->
-    min(List, Func, undefined).
-
-min([], _Func, Result) ->
-    Result;
-min([H|T], Func, Result) ->
-    Value = Func(H),
-    case (Result == undefined) orelse (Value < Result) of
-	true->
-	    min(T, Func, Value);
-	false ->
-	    min(T, Func, Result)
-    end.
-
-
-max(List, Func) ->
-    max(List, Func, undefined).
-
-max([], _Func, Result) ->
-    Result;
-max([H|T], Func, Result) ->
-    Value = Func(H),
-    case (Result == undefined) orelse (Value > Result) of
-	true ->
-	    max(T, Func, Value);
-	false ->
-	    max(T, Func, Result)
-    end.
 
 get_category(Code) ->
     Uniq = spud:uniq(Code),
