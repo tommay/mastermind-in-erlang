@@ -60,7 +60,8 @@ codes_to_try(This) ->
 make_guess(This) ->
     case size(This) == length(This#mastermind.all_codes) of
 	true ->
-	    %% This saves time on the first guess.
+	    %% This saves time on the first guess because we only have to
+	    %% check a few guesses.
 	    first_guess(This);
 	false ->
 	    best_guess(This)
@@ -73,6 +74,14 @@ first_guess(This) ->
     %% So we caategorize all the codes, use the first one as a representative
     %% to get the worst case path length, then pick a random guess
     %% from the best category.
+    %%
+    %% It turns out that all categories of guess for four code positions
+    %% and six colors have a worst-case papth length of 5.  So we can
+    %% just pick a guess at random.
+    %%
+    %% We might want to see if some type of guess has a shorter path length
+    %% on average.
+    %%
     Codes = This#mastermind.codes,
     Categorized = group_by(Codes, fun (Code) -> get_category(Code) end),
     {{_Category, List}, _Min} =
