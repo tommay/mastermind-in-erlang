@@ -87,7 +87,9 @@ first_guess(This) ->
 	  fun (E) ->
 		  {_Category, List} = E,
 		  Guess = hd(List),
-		  {worst_case_path_length(This, Guess), random:uniform()}
+		  WorstCase = worst_case_path_length(This, Guess),
+		  io:format("~p: ~p~n", [_Category, WorstCase]),
+		  {WorstCase, random:uniform()}
 	  end),
     sample(List).
 
@@ -98,7 +100,7 @@ best_guess(#mastermind{codes = [H]}) ->
 best_guess(This) ->
     %% Find the longest path to finish for each code.  Return the code
     %% with the shortest worst-case path.
-    {Guess, {PathLength, _}} =
+    {Guess, {_PathLength, _}} =
     parallel_min_by(
       codes_to_try(This),
       fun (Guess) ->
@@ -106,10 +108,11 @@ best_guess(This) ->
 	      random:seed(now()),
 	      {worst_case_path_length(This, Guess), random:uniform()}
       end),
-    io:format("~p (~p)~n", [Guess, PathLength]),
+    io:format("~p (~p)~n", [Guess, _PathLength]),
     Guess.
 
 worst_case_path_length(This, Guess) ->
+    %% parallel_max makes for less parallelism here.
     max(This#mastermind.all_scores,
 	fun (Score) ->
 		New = new(This, Guess, Score),
@@ -126,22 +129,16 @@ worst_case_path_length(This, Guess) ->
 	end).
 
 path_length(This) ->
-    min(
-      codes_to_try(This),
+    %% Only use parallel_min if the task is large enough that breaking
+    %% it down is a win.
+    Codes = codes_to_try(This),
+    case length(Codes) < 15 of
+	true -> F = fun min/2;
+	false -> F = fun parallel_min/2
+    end,
+    F(codes_to_try(This),
       fun (Guess) ->
 	      worst_case_path_length(This, Guess)
-      end).
-
-%% The parallel_max version works fine, but erl seems to choke when
-%% the number of processes gets too high.  1296 codes times 14 scores
-%% == 18144 processes, althouth some of them should be finished by the
-%% time they're all started.
-%%
-parallel_worst_case(This, Guess) ->
-    parallel_max(
-      This#mastermind.all_scores,
-      fun (Score) ->
-	      size(new(This, Guess, Score))
       end).
 
 compute_score(Code, Guess) ->
@@ -164,10 +161,10 @@ filter_codes(Codes, Guess, Score) ->
 
 parallel_min_by(List, Func) ->
     {Min, Result} = parallel_min(
-		    List,
-		    fun (Element) ->
-			    {Func(Element), Element}
-		    end),
+		      List,
+		      fun (Element) ->
+			      {Func(Element), Element}
+		      end),
     {Result, Min}.
 
 parallel_min(List, Func) ->
@@ -181,7 +178,13 @@ parallel_minmax(List, Func, Pred) ->
     Ref = make_ref(),
     lists:foreach(
       fun (Element) ->
-	      spawn(fun () -> Self ! {Ref, Func(Element)} end)
+	      F = fun () -> Self ! {Ref, Func(Element)} end,
+	      case limiter:try_spawn(limiter, F) of
+		  true ->
+		      ok;
+		  false ->
+		      F()
+	      end
       end,
       List),
     collect_minmax(Ref, Pred, length(List)).
