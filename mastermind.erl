@@ -85,8 +85,7 @@ first_guess(This) ->
     Codes = This#mastermind.codes,
     Categorized = group_by(Codes, fun (Code) -> get_category(Code) end),
     {{_Category, List}, _Min} =
-	spud:parallel_min_by(
-	  limiter,
+	spud:min_by(
 	  Categorized,
 	  fun (E) ->
 		  {_Category, List} = E,
@@ -105,8 +104,7 @@ best_guess(This) ->
     %% Find the longest path to finish for each code.  Return the code
     %% with the shortest worst-case path.
     {Guess, {_PathLength, _}} =
-    spud:parallel_min_by(
-      limiter,
+    spud:min_by(
       codes_to_try(This),
       fun (Guess) ->
 	      %% Include a random number to mix things up when there's a tie.
@@ -117,7 +115,6 @@ best_guess(This) ->
     Guess.
 
 worst_case_path_length(This, Guess) ->
-    %% parallel_max makes for less parallelism here.
     spud:max(This#mastermind.all_scores,
 	fun (Score) ->
 		New = new(This, Guess, Score),
