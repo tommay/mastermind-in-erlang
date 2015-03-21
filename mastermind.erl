@@ -148,8 +148,10 @@ path_length(This) ->
 compute_score(Code, Guess) ->
     Zipped = lists:zip(Code, Guess),
     {Hits, Misses} = lists:partition(
-		       fun (Z) ->
-			       element(1, Z) == element(2, Z)
+		       fun ({A, A}) ->
+			       true;
+			   (_) ->
+			       false
 		       end,
 		       Zipped),
     Red = length(Hits),
