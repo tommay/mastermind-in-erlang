@@ -83,25 +83,26 @@ mapreduce([H|T], Map, Reduce, Accum) ->
 %% are spawned, the reduce is done in-process.
 %%
 parallel_mapreduce(List, Map, Reduce, Accum) ->
-    limited_mapreduce(fun spawn/1, List, Map, Reduce, Accum).
+    Self = self(),
+    Ref = make_ref(),
+    lists:foreach(
+      fun (Element) ->
+	  spawn(fun () -> Self ! {Ref, Map(Element)} end)
+      end,
+      List),
+    collect_mapreduce(Ref, Reduce, length(List), Accum).
 
 %% Performs a mapreduce on the List and returns the result.  Map
 %% operations are spawned but are limited by the given Limiter so we
 %% don't spawn too many.  If we can't spawn a map process then the map
 %% is performed in-process.
 %%
-parallel_mapreduce(Limiter, List, Map, Reduce, Accum)->
-    Run = fun (Func) ->
-		  limiter:run(Limiter, Func)
-	  end,
-    limited_mapreduce(Run, List, Map, Reduce, Accum).
-
-limited_mapreduce(Run, List, Map, Reduce, Accum) ->
+parallel_mapreduce(Pool, List, Map, Reduce, Accum)->
     Self = self(),
     Ref = make_ref(),
     lists:foreach(
       fun (Element) ->
-	      Run(fun () -> Self ! {Ref, Map(Element)} end)
+	      pool:run(Pool, fun () -> Self ! {Ref, Map(Element)} end)
       end,
       List),
     collect_mapreduce(Ref, Reduce, length(List), Accum).

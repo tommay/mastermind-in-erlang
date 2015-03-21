@@ -10,7 +10,7 @@ g() ->
 %% gameplayer:play_games(gameplayer:new(false), 10).
 %%
 new(UseAllCodes) ->
-    limiter:start(limiter, 150),
+    pool:start(pool, 150),
     #gameplayer{use_all_codes = UseAllCodes}.
 
 play_games(UseAllCodes, N) ->

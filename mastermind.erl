@@ -122,7 +122,7 @@ path_lengths(This) ->
 	    F = fun spud:min/2;
 	false ->
 	    F = fun (List, Func) ->
-			spud:parallel_min(limiter, List, Func)
+			spud:parallel_min(pool, List, Func)
 		end
     end,
     {_Average, Count, TotalLength} =
