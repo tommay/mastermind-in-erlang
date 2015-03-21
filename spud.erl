@@ -90,9 +90,9 @@ parallel_mapreduce(List, Map, Reduce, Accum) ->
 %% don't spawn too many.  If we can't spawn a map process then the map
 %% is performed in-process.
 %%
-parallel_mapreduce(Limiter, List, Map, Reduce, Accum)->
+parallel_mapreduce(Pool, List, Map, Reduce, Accum) ->
     Run = fun (Func) ->
-		  limiter:run(Limiter, Func)
+		  pool:run(Pool, Func)
 	  end,
     limited_mapreduce(Run, List, Map, Reduce, Accum).
 
