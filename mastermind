@@ -1,0 +1,18 @@
+#!/usr/bin/env escript
+
+%% escript:
+%% http://erlangcentral.org/frame/?href=http%3A%2F%2Fwww.erlang.org%2Fdoc%2Fman%2Fescript.html#.VOF5BS4YMvg
+%%
+%% erl:
+%% https://erlangcentral.org/wiki/index.php?title=Running_Erlang_Code_From_The_Command_Line
+
+%% These two lines are optional.
+%%
+-module(main).
+-export([main/1]).
+-mode(native).
+
+main([]) ->
+    gameplayer:g();
+main(_) ->
+    io:format("Usage: mastermind~n").
