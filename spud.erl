@@ -129,17 +129,19 @@ min(List, Func) ->
 max(List, Func) ->
     mapreduce(List, Func, fun max_reduce/2, undefined).
 
-min_reduce(Value, Accum) ->
-    case (Accum == undefined) orelse (Value < Accum) of
-	true -> Value;
-	false -> Accum
-    end.
+min_reduce(Value, undefined) ->
+    Value;
+min_reduce(Value, Accum) when Value < Accum ->
+    Value;
+min_reduce(_Value, Accum) ->
+    Accum.
 
-max_reduce(Value, Accum) ->
-    case (Accum == undefined) orelse (Value > Accum) of
-	true -> Value;
-	false -> Accum
-    end.
+max_reduce(Value, undefined) ->
+    Value;
+max_reduce(Value, Accum) when Value > Accum ->
+    Value;
+max_reduce(_Value, Accum) ->
+    Accum.
 
 %% Returns the element of List with the minimum value computed by Func.
 %%
