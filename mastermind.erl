@@ -58,8 +58,14 @@ codes_to_try(This) ->
     end.
 
 make_guess(This) ->
-    first_guess(This),
-    halt(0).
+    case size(This) == length(This#mastermind.all_codes) of
+	true ->
+	    %% This saves time on the first guess because we only have to
+	    %% check a few guesses.
+	    first_guess(This);
+	false ->
+	    best_guess(This)
+    end.
 
 first_guess(This) ->
     %% For the first guess we only need to determine what category
@@ -78,60 +84,66 @@ first_guess(This) ->
     %%
     Codes = This#mastermind.codes,
     Categorized = group_by(Codes, fun (Code) -> get_category(Code) end),
-    lists:foreach(
-      fun (E) ->
-	      {_Category, List} = E,
-	      Guess = hd(List),
-	      PathLengths = path_lengths(This, Guess),
-	      {Paths, TotalPathLength} = PathLengths,
-	      io:format("~p: ~p => ~p~n",
-			[_Category, PathLengths, TotalPathLength / Paths])
-      end,
-      Categorized).
+    {{_Category, List}, _Min} =
+	spud:min_by(
+	  Categorized,
+	  fun (E) ->
+		  {_Category, List} = E,
+		  Guess = hd(List),
+		  WorstCase = worst_case_path_length(This, Guess),
+		  io:format("~p: ~p~n", [_Category, WorstCase]),
+		  {WorstCase, random:uniform()}
+	  end),
+    spud:sample(List).
 
-path_lengths(This, Guess) ->
-    %% Here we don't get to choose the score, we just get what we get.
-    %% So we need to consider the average path length over all scores.
-    spud:mapreduce(
-      This#mastermind.all_scores,
-      fun (Score) ->
-	      New = new(This, Guess, Score),
-	      case size(New) of
-		  0 ->
-		      %% This Score is not possible for this Guess, so
-		      %% it doesn't contribute to path lengths.
-		      {0, 0};
-		  1 ->
-		      {1, 1};
-		  _ ->
-		      {N, L} = path_lengths(New),
-		      {N, L + N}  % Effectively add 1 to each path length.
-	      end
-      end,
-      fun ({Paths, TotalLength}, {APaths, ATotalLength}) ->
-	      {APaths + Paths, ATotalLength + TotalLength}
-      end,
-      {0, 0}).
+best_guess(#mastermind{codes = [H]}) ->
+    %% This case is only necessary if we're making guesses from
+    %% all_codes instead of codes.
+    H;
+best_guess(This) ->
+    %% Find the longest path to finish for each code.  Return the code
+    %% with the shortest worst-case path.
+    {Guess, {_PathLength, _}} =
+    spud:min_by(
+      codes_to_try(This),
+      fun (Guess) ->
+	      %% Include a random number to mix things up when there's a tie.
+	      random:seed(now()),
+	      {worst_case_path_length(This, Guess), random:uniform()}
+      end),
+    io:format("~p (~p)~n", [Guess, _PathLength]),
+    Guess.
 
-path_lengths(This) ->
-    %% We choose the guess.  We want the guess with the shortest
-    %% average path length.
+worst_case_path_length(This, Guess) ->
+    spud:max(This#mastermind.all_scores,
+	fun (Score) ->
+		New = new(This, Guess, Score),
+		case size(New) of
+		    0 ->
+			%% This Score is not possible for this Guess,
+			%% so don't include it in the max.
+			-1;
+		    1 ->
+			1;
+		    _ ->
+			1 + path_length(New)
+		end
+	end).
+
+path_length(This) ->
+    %% Only use parallel_min if the task is large enough that breaking
+    %% it down is a win.
     Codes = codes_to_try(This),
     case length(Codes) < 15 of
 	true ->
 	    F = fun spud:min/2;
 	false ->
-	    F = fun (List, Func) ->
-			spud:parallel_min(limiter, List, Func)
-		end
+	    F = fun (List, Func) -> spud:parallel_min(limiter, List, Func) end
     end,
-    {_Average, Count, TotalLength} =
-	F(Codes,
-	  fun (Guess) ->
-		  {Count, TotalLength} = path_lengths(This, Guess),
-		  {TotalLength / Count, Count, TotalLength}
-	  end),
-    {Count, TotalLength}.
+    F(codes_to_try(This),
+      fun (Guess) ->
+	      worst_case_path_length(This, Guess)
+      end).
 
 compute_score(Code, Guess) ->
     Zipped = lists:zip(Code, Guess),
