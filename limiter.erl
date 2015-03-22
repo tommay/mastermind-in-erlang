@@ -1,7 +1,7 @@
 -module(limiter).
--export([start/2, try_spawn/2]).
+-export([start/2, run/2]).
 
--define(TRY_SPAWN, try_spawn).
+-define(RUN, run).
 -define(RESULT, result).
 
 %% Starts a semaphore process and registers under the given name.
@@ -10,19 +10,21 @@ start(Name, Permits) ->
     Pid = spawn(fun () -> loop(Name, Permits) end),
     register(Name, Pid).
 
-%% Non-blocking call to try to spawn a process to call Func.  If a permit
-%% is available then a process will be spawned, otherwise it won't.
+%% Spawns a process to run Func if there is a permit available, else
+%% runs Func in-process.
 %%
-try_spawn(Name, Func) ->
-    Name ! {self(), ?TRY_SPAWN, Func},
+run(Name, Func) ->
+    Name ! {self(), ?RUN, Func},
     receive
-	{Name, ?RESULT, Result} ->
-	    Result
+	{Name, ?RESULT, true} ->
+	    ok;
+	{Name, ?RESULT, false} ->
+	    Func()
     end.
 
 loop(Name, Permits) ->
     receive
-	{Pid, ?TRY_SPAWN, Func} ->
+	{Pid, ?RUN, Func} ->
 	    case Permits == 0 of
 		true ->
 		    Pid ! {Name, ?RESULT, false},

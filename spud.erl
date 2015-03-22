@@ -91,22 +91,17 @@ parallel_mapreduce(List, Map, Reduce, Accum) ->
 %% is performed in-process.
 %%
 parallel_mapreduce(Limiter, List, Map, Reduce, Accum)->
-    Spawn = fun (Func) ->
-		    case limiter:try_spawn(Limiter, Func) of
-			true ->
-			    ok;
-			false ->
-			    Func()
-		    end
-	    end,
-    limited_mapreduce(Spawn, List, Map, Reduce, Accum).
+    Run = fun (Func) ->
+		  limiter:run(Limiter, Func)
+	  end,
+    limited_mapreduce(Run, List, Map, Reduce, Accum).
 
-limited_mapreduce(Spawn, List, Map, Reduce, Accum) ->
+limited_mapreduce(Run, List, Map, Reduce, Accum) ->
     Self = self(),
     Ref = make_ref(),
     lists:foreach(
       fun (Element) ->
-	      Spawn(fun () -> Self ! {Ref, Map(Element)} end)
+	      Run(fun () -> Self ! {Ref, Map(Element)} end)
       end,
       List),
     collect_mapreduce(Ref, Reduce, length(List), Accum).
