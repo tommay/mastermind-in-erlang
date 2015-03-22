@@ -4,6 +4,12 @@
 -define(RUN, run).
 -define(RESULT, result).
 
+%% This code uses a semaphore to limit the number of spawned
+%% processes.  Spawned processes can also be limited by using a
+%% process pool (see pool.erl), but this is somewhat faster.  And the
+%% code is simpler.
+
+
 %% Starts a semaphore process and registers under the given name.
 %%
 start(Name, Permits) ->
