@@ -13,6 +13,6 @@
 -mode(native).
 
 main([]) ->
-    gameplayer:g();
+    gameplayer:go();
 main(_) ->
     io:format("Usage: mastermind~n").

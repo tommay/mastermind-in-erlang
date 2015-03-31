@@ -1,9 +1,9 @@
 -module(gameplayer).
--compile(export_all).
+-export([go/0]).
 
 -record(gameplayer, {use_all_codes = true}).
 
-g() ->
+go() ->
     play_games(false, 1).
 
 %% gameplayer:play_a_game(gameplayer:new(true)).
