@@ -9,7 +9,6 @@
 %%
 start(Name, Size) ->
     Pid = spawn(fun () ->
-			process_flag(trap_exit, true),
 			loop(Name, Size, [], 0)
 		end),
     register(Name, Pid).
@@ -36,7 +35,9 @@ loop(Name, Size, IdleWorkers = [Worker|T], BusyCount) ->
 	    handle_done(Name, Size, IdleWorkers, BusyCount, Done)
     end;
 loop(Name, Size, _IdleWorkers = [], BusyCount) when BusyCount < Size ->
-    loop(Name, Size, [spawn_link(fun worker/0)], BusyCount);
+    Pid = spawn(fun worker/0),
+    monitor(process, Pid),
+    loop(Name, Size, [Pid], BusyCount);
 loop(Name, Size, IdleWorkers = [], BusyCount) ->
     receive
 	{Pid, ?TRY_RUN, _Func} ->
@@ -50,7 +51,7 @@ handle_done(Name, Size, IdleWorkers, BusyCount, Done) ->
     case Done of
 	{?DONE, Pid} ->
 	    loop(Name, Size, [Pid | IdleWorkers], BusyCount - 1);
-	{'EXIT', _Pid, _Reason} ->
+	{'DOWN', _Ref, process, _Pid, _Reason} ->
 	    loop(Name, Size, IdleWorkers, BusyCount - 1)
     end.
 
