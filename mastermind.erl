@@ -26,7 +26,7 @@ new(This, Guess, Score) ->
     This#mastermind{codes = filter_codes(This#mastermind.codes, Guess, Score)}.
 
 colors() ->
-    [white, yellow, pink, purple, orange, turquoise].
+    [white, yellow, pink, purple, orange]. %, turquoise].
 
 codes() ->
     spud:combinations(4, colors()).
