@@ -1,10 +1,8 @@
 #!/usr/bin/env escript
+%%! -pa ebin
 
-%% escript:
-%% http://erlangcentral.org/frame/?href=http%3A%2F%2Fwww.erlang.org%2Fdoc%2Fman%2Fescript.html#.VOF5BS4YMvg
-%%
-%% erl:
-%% https://erlangcentral.org/wiki/index.php?title=Running_Erlang_Code_From_The_Command_Line
+%% Runs a game of mastermind.  The program makes a random code, then
+%% breaks it in as few guesses as it can manage.
 
 %% These two lines are optional.
 %%
@@ -15,4 +13,4 @@
 main([]) ->
     gameplayer:go();
 main(_) ->
-    io:format("Usage: mastermind~n").
+    io:format("Usage: mastermind [Number of games]~n").
